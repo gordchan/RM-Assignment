@@ -1,0 +1,146 @@
+---
+title: "Motor Trend Car Road Tests on MPG"
+author: "Gordon CHAN"
+date: "2015/9/24"
+output: pdf_document
+---
+
+# Introduction
+
+In this report we performed data analyse on the *mtcars* dataset to explore the relationship between a sets of variables with the miles per gallon (MPG), with the aim to answer 2 questions:
+
+1. Is an automatic or manual transmission better for MPG?
+2. Quantify the MPG difference between automatic and manual transmissions
+
+# Executive Summary
+
+In this road test, 32 vehicles are tested on their Miles Per Gallon (MPG) and 11 variables are logged. From the data, a model (*mpg ~ wt + factor(cyl) + hp + am*) is fitted with MPG as the dependent variable, with 4 independent variables, weight, number of cylinders, horsepower and transmission identified.
+
+# R-packages and Dataset
+
+The *mtcars* dataset is loaded. For the analysis the *Caret* package is used.
+
+```{r preparations}
+# Load libraries
+library(caret)
+library(GGally)
+library(gridExtra)
+# Load dataset
+data(mtcars)
+
+```
+
+# Exploratory Data Analysis
+
+The *mtcars* dataset contained `r dim(mtcars)[2]` variables of `r dim(mtcars)[2]` models of cars tested.
+
+```{r exploratory}
+# Dataset dimensions
+dim(mtcars)
+
+```
+
+From the documentation, the `r dim(mtcars)[2]` variables are explained:
+
+Variable | Descripton
+---------|-----------
+mpg | Miles/(US) gallon
+cyl | Number of cylinders
+disp | Displacement (cu.in.)
+hp | Gross horsepower
+drat | Rear axle ratio
+wt | Weight (lb/1000)
+qsec | 1/4 mile time
+vs | V/S
+am | Transmission (0 = automatic, 1 = manual)
+gear | Number of forward gears
+carb | Number of carburetors
+
+The pairs plot of the variables can be found in *Appendix 1*.
+
+While **mpg** would be our dependent (outcome) variable, all others variables are potential independent variables. However, we have a special interst in **am** since it relates directly to the 2 question asked in the introduction.
+
+# Regression modelling
+
+Linear multivariable regression was performed. A rough model is fitted with **mpg** against all other variables.
+
+```{r roughModel}
+# Draft model1
+modfit1 <- lm(mpg ~ factor(cyl) + disp + hp + drat + wt + qsec + 
+                  vs + am + factor(gear) + carb, data = mtcars)
+```
+
+From the summary (*Appendix 2*), we can see that only a handful of variables showed a meaningfully large coefficient. Automatic variable selection was then performed to select the relavant variables. 
+
+```{r selection}
+# Skeleton model
+modfit0 <- lm(mpg ~ 1, data = mtcars)
+# Automatic variable selection by step function
+stepfit <- step(modfit0, scope=list(lower=modfit0, upper=modfit1), direction="forward", trace = 0)
+summary(stepfit)
+```
+
+Since we wish to explore the effect of transmission (am) on the mpg, the fitted model is compared with one that has a single variable *am*. From the ANOVA result, we could see that the difference is very siginificant, hence the null hypothesis that the variables *wt*, *cyl*, and *hp* are not contributing to the variability of the model is rejected.
+
+```{r comparison}
+# Baseline model
+modfit.am <- lm(mpg ~ am, data = mtcars)
+anova(modfit.am, stepfit)
+```
+
+If we look at the *Residual vs Fitted* plot of the model, we could see that the points are quite evenly and randomly scattered, while for the *Normal Q-Q* plot the points are lining quite neatly along the diagonal verifying that the residuals are randomly distributed. We could also observe some outliers in the higher end of mpg.
+
+```{r diagnosis, fig.width = 5, fig.height = 5}
+par(mfrow=c(2, 2))
+plot(stepfit)
+```
+
+# Question 1: Is an automatic or manual transmission better for MPG?
+
+In regard to the vehical transmission, the 1st question is relatively straight forward. A t-test is performed to compare the mean mpg of automatic / manual transmission group. We can see that there is a very significant difference between the groups, where cars with **manual transmission** has a higher MPG than those with automatic transmission. A boxplot can be found in Appendix 3.
+
+```{r Q1, fig.width = 6, fig.height = 4}
+t.test(mpg ~ am, data = mtcars)
+```
+
+# Question 2: Quantify the MPG difference between automatic and manual transmissions
+
+Although from the t-test performed above, one might be tempted to quantify the difference between the groups by a simple subtraction. This would be incorrect as MPG is also affected by other factors as well. Here we should refer to the fitted model. From the *am* coefficient, we can conclude that cars with manual transmission get **1.80921** more MPG than an automatic.
+
+# Conclusion
+
+We have modelled the MPG of a given vehicle as *mpg ~ wt + factor(cyl) + hp + am*, in which it is affected by 4 variables:
+
+1. Weight, a decrease in MPG of **2.49683** is expected per every increase of 1000lb in weight.
+2. Number of cylinders, compared with those with 4 cylinders, a decrease in MPG of **3.03134** is expected for vehicle with 6 cylinders, and a decrease of **2.16368** for vehicle with 8 cylinders.
+3. Horsepower, a decrease in MPG of **0.03211** is expected per every increase of 1 gross horsepower.
+4. Transmission, an increase in MPG of **1.80921** is expected for manual vehicles.
+
+# Appendicies
+
+## Appendix 1: Pairs plot of variables in *mtcars*
+
+```{r matrix, fig.width = 10, fig.height = 8}
+# Pairs plot of mtcars
+ggpairs(mtcars, 
+        title = "Variables of mtcars dataset",
+        size = list(corSize = 10, size = 2),
+        alpha = 0.8,
+        axisLabels = "internal")
+```
+
+## Appendix 2: Coefficient of fitted models
+
+```{r modSummary}
+summary(modfit1)$coef
+```
+
+## Apendix 3: Boxplot of MPG vs Transmissions
+
+```{r Q1plot}
+ggplot(data=mtcars, aes(am, mpg))+
+    geom_boxplot(aes(fill=as.factor(am)))+
+    labs(title ="Boxplot of Mean MPG vs Transmission", x = "Transmission", y = "MPG")+
+    scale_fill_discrete(name = "Transmission", labels = c("Automatic", "Manual"))
+```
+
